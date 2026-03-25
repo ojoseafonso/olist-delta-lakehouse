@@ -4,13 +4,14 @@
 ![Databricks](https://img.shields.io/badge/Databricks-Free%20Edition-FF3621?logo=databricks&logoColor=white)
 ![Terraform](https://img.shields.io/badge/Terraform-IaC-7B42BC?logo=terraform&logoColor=white)
 ![Delta Lake](https://img.shields.io/badge/Delta%20Lake-Medallion-003366?logo=delta&logoColor=white)
-Pipeline de dados implementando a arquitetura **Medallion (Bronze → Silver → Gold)** no dataset [Olist Brazilian E-Commerce](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) utilizando **Databricks Free Edition** com **Unity Catalog**.
+
+Pipeline de dados implementando a arquitetura Medallion no dataset [Olist Brazilian E-Commerce](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) utilizando Databricks Free Edition.
 
 ---
 
 ## 📌 Visão Geral
 
-O projeto demonstra um pipeline de dados real de ponta a ponta: ingestão de CSVs brutos, limpeza e padronização na camada Silver, e modelagem dimensional Star Schema na camada Gold e orquestrado via **Databricks Workflows** provisionado como código utilizando **Terraform**.
+O projeto demonstra um pipeline de dados real de ponta a ponta: ingestão de CSVs brutos, limpeza e padronização na camada Silver e modelagem dimensional Star Schema na camada Gold, orquestrado via Databricks Workflows provisionado com Terraform.
 
 * Arquitetura Lakehouse com Delta Lake
 * Transformação de dados em larga escala com PySpark
@@ -38,7 +39,7 @@ O projeto demonstra um pipeline de dados real de ponta a ponta: ingestão de CSV
 
 ## 🛠️ Stack Tecnológica
 
-| Componente | Tecnologia |
+| Seção | Tecnologia |
 |---|---|
 | Plataforma | Databricks Free Edition |
 | Armazenamento | Delta Lake + Unity Catalog |
@@ -55,6 +56,7 @@ O projeto demonstra um pipeline de dados real de ponta a ponta: ingestão de CSV
 ```
 olist-lakehouse-databricks/
 ├── notebooks/
+│   ├── 00_setup.py
 │   ├── silver/
 │   │   ├── 01_silver_orders.py
 │   │   ├── 02_silver_products.py
@@ -64,7 +66,7 @@ olist-lakehouse-databricks/
 │   │   ├── 06_silver_sellers.py
 │   │   ├── 07_silver_payments.py
 │   │   ├── 08_silver_geolocation.py
-│   │   └── 09_silver_category_translation.py
+│   │   └── 09_silver_product_category_name_translation.py
 │   └── gold/
 │       ├── 01_gold_dim_tempo.py
 │       ├── 02_gold_dim_cliente.py
@@ -77,11 +79,7 @@ olist-lakehouse-databricks/
 │   ├── main.tf
 │   ├── variables.tf
 │   └── terraform.tfvars       ← não versionado (.gitignore)
-├── docs/
-│   ├── dag_databricks.png
-│   └── star_schema_gold.png
-├── .gitignore
-└── README.md
+└── .gitignore
 ```
 
 ---
@@ -118,7 +116,7 @@ A camada Silver é responsável pelo refinamento da qualidade dos dados, como pr
 5. Verificação de duplicatas e integridade de PKs
 6. Escrita em Delta com 'mode("overwrite")'
 
-**Decisões técnicas relevantes por tabela:**
+**Decisões relevantes por tabela:**
 
 **'01_silver_orders'**
 Quatro timestamps com nullability diferenciada: 'order_purchase_timestamp' definido como 'NOT NULL' (evento obrigatório que define a existência do pedido); os demais 'order_approved_at', 'order_delivered_customer_date', 'order_estimated_delivery_date' são nullable, pois pedidos cancelados ou em trânsito podem não ter esses valores preenchidos.
@@ -141,20 +139,20 @@ PK composta por '(order_id, payment_sequential)'. Cast de 'payment_sequential' e
 **'08_silver_geolocation'**
 Normalização Unicode de nomes de cidades via 'translate()' que remove acentos e caracteres especiais para padronização. Agregação por 'geolocation_zip_code_prefix': coordenadas calculadas como média ('avg'), cidade e estado preservados via 'max()' após normalização. Limitação conhecida: CEPs com múltiplos bairros preservam um nome de cidade arbitrário, o que é aceitável pois é atributo descritivo de seller.
 
-**'09_silver_category_translation'**
+**'09_silver_product_category_name_translation'**
 Tabela simples de mapeamento sem problemas de qualidade.
 
 ---
 
 ### Gold
 
-A camada Gold implementa um **Star Schema** com 4 dimensões e 3 tabelas fato. As Surrogate Keys (SKs) são geradas via 'SHA2-256' com prefixo de entidade, o que garante idempotência no reprocessamento e reduz o risco a colisão de gerar chaves iguais:
+A camada Gold implementa um Star Schema com 4 dimensões e 3 tabelas fato. As Surrogate Keys (SKs) são geradas via 'SHA2-256' com prefixo de entidade, o que garante idempotência no reprocessamento e reduz o risco a colisão de gerar chaves iguais:
 
 '''
 sha2(concat(lit("dim_cliente||"), col("customer_unique_id"), ...), 256)
 '''
 
-**Decisões técnicas relevantes:**
+**Decisões relevantes:**
 
 **'01_gold_dim_tempo'**
 Date spine gerado via 'spark.sql' com função 'sequence()', cobrindo do primeiro dia do ano mínimo do dataset até 31/12 do ano mínimo + 10 anos. Atributos derivados em português ('nome_mes', 'nome_dia') via 'create_map()', pois 'date_format()' no PySpark não suporta locale 'pt_BR'. Linha sentinela com 'sk_tempo = "0"' e 'nome_mes = "data desconhecida"' para absorver joins com timestamps nulos nas fatos
@@ -181,7 +179,7 @@ Granularidade: uma linha por review ('order_id'). Três chaves de tempo: compra,
 
 ## ⚙️ Infraestrutura e Orquestração
 
-O pipeline é orquestrado via **Databricks Workflows** com um Job de 16 tasks provisionado como código com **Terraform**.
+O pipeline é orquestrado via Databricks Workflows com um Job de 16 tasks provisionado como código com Terraform.
 
 ### Estrutura do Job
 
@@ -215,7 +213,7 @@ databricks_token = "seu_token_aqui"
 **Execução:**
 
 ```bash
-# Autenticação via variáveis de ambiente (recomendado)
+# Autenticação por variáveis de ambiente (recomendado)
 export DATABRICKS_HOST="https://seu-workspace.cloud.databricks.com"
 export DATABRICKS_TOKEN="seu_token_aqui"
 
@@ -226,7 +224,7 @@ terraform apply
 
 ---
 
-## ⚠️ Limitações Conhecidas
+## ⚠️ Limitações
 
 **Range da 'dim_tempo'**
 O cálculo do 'max_date' usava 'greatest()' com valor sentinela '9999-12-31' no 'coalesce', o que inflava o range para milhares de anos. Corrigido: o range é calculado como 'ano_mínimo_do_dataset + 10 anos', tornando o date spine determinístico e sem datas irrelevantes.
@@ -246,22 +244,22 @@ A 'fato_avaliacoes' não possui 'sk_seller' pois um pedido pode conter itens de 
 ---
 
 ## 🚀 Como Executar
-
+ 
 ### Pré-requisitos
-
+ 
 - Conta no [Databricks Free Edition](https://community.cloud.databricks.com/)
-- Unity Catalog habilitado com catalog 'olist' e schemas 'bronze', 'silver', 'gold' criados
-- Dataset Olist disponível em '/Volumes/workspace/olist-storage/bronze/'
-- Terraform >= 1.0 (para provisionamento do Job com IaC)
-
+- Dataset Olist disponível em `/Volumes/workspace/olist-storage/bronze/`
+- Terraform >= 1.0 (para provisionamento do Job)
+ 
 ### Execução manual (notebook a notebook)
-
-1. Execute os notebooks Silver em ordem ('01' → '09')
-2. Execute os notebooks Gold de dimensões ('01' → '04')
-3. Execute os notebooks Gold de fatos ('05' → '07')
-
+ 
+1. Execute `00_setup.py` — cria o catalog `olist` e os schemas `bronze`, `silver`, `gold` no Unity Catalog
+2. Execute os notebooks Silver em ordem (`01` → `09`)
+3. Execute os notebooks Gold de dimensões (`01` → `04`)
+4. Execute os notebooks Gold de fatos (`05` → `07`)
+ 
 ### Execução via Databricks Workflows
-
+ 
 Após provisionamento com Terraform, acesse **Workflows → olist_pipeline → Run Now** no Databricks.
 
 ---
