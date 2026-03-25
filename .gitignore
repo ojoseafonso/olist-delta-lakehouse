@@ -1,0 +1,14 @@
+
+# ignore default local dir (loaded data)
+_local
+# ignore basic python artifacts
+.env
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+# ignore duckdb
+*.duckdb
+*.wal
+
+# .gitignore
+terraform/terraform.tfvars
