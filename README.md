@@ -253,7 +253,7 @@ A 'fato_avaliacoes' não possui 'sk_seller' pois um pedido pode conter itens de 
  
 ### Execução manual (notebook a notebook)
  
-1. Execute `00_setup.py` — cria o catalog `olist` e os schemas `bronze`, `silver`, `gold` no Unity Catalog
+1. Execute `00_setup.py` para criar o catalog `olist` e os schemas `bronze`, `silver`, `gold` no Unity Catalog
 2. Execute os notebooks Silver em ordem (`01` → `09`)
 3. Execute os notebooks Gold de dimensões (`01` → `04`)
 4. Execute os notebooks Gold de fatos (`05` → `07`)
